@@ -1,0 +1,2475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Veyra — Website Health Monitor</title>
+
+    <style>
+        :root {
+            --olive: #8A8635;
+            --moss: #889063;
+            --apricot: #F09367;
+            --blush: #F0A599;
+            --copper: #CE5A43;
+            --orange: #AB482D;
+            --wine: #6A1F3A;
+            --cream: #FFF8EF;
+            --white: #FFFFFF;
+            --dark: #29251F;
+            --muted: #716B62;
+            --border: rgba(41, 37, 31, 0.12);
+            --green: #58744C;
+            --red: #B94A3A;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Inter, Arial, sans-serif;
+            color: var(--dark);
+            background:
+                linear-gradient(135deg, #EEF0DD 0%, #FFF8EF 48%, #FBE5DC 100%);
+            min-height: 100vh;
+        }
+
+        button,
+        input,
+        select {
+            font: inherit;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        .app {
+            min-height: 100vh;
+            display: flex;
+        }
+
+        .sidebar {
+            width: 235px;
+            min-height: 100vh;
+            background: #E4E8D0;
+            border-right: 1px solid var(--border);
+            padding: 26px 16px;
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+        }
+
+        .brand {
+            padding: 5px 12px 30px;
+        }
+
+        .brand-name {
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: -1px;
+            color: var(--wine);
+        }
+
+        .brand-sub {
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 3px;
+        }
+
+        .nav {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .nav button {
+            border: none;
+            background: transparent;
+            padding: 12px 14px;
+            text-align: left;
+            border-radius: 12px;
+            color: #57554A;
+            font-weight: 600;
+        }
+
+        .nav button:hover {
+            background: rgba(255,255,255,.55);
+        }
+
+        .nav button.active {
+            background: var(--wine);
+            color: white;
+        }
+
+        .sidebar-bottom {
+            position: absolute;
+            left: 20px;
+            right: 20px;
+            bottom: 24px;
+            font-size: 11px;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        .main {
+            margin-left: 235px;
+            width: calc(100% - 235px);
+            padding: 28px 34px 50px;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .eyebrow {
+            text-transform: uppercase;
+            letter-spacing: 1.8px;
+            font-size: 10px;
+            font-weight: 800;
+            color: var(--copper);
+            margin-bottom: 6px;
+        }
+
+        h1 {
+            font-size: 30px;
+            letter-spacing: -1px;
+        }
+
+        .live-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 9px 13px;
+            border-radius: 20px;
+            background: rgba(255,255,255,.7);
+            border: 1px solid var(--border);
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--moss);
+        }
+
+        .dot.red {
+            background: var(--red);
+        }
+
+        .page {
+            display: none;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        .hero {
+            background: linear-gradient(120deg, #F7D3C3, #F7E9D5 55%, #DDE4C9);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 30px;
+            margin-bottom: 22px;
+        }
+
+        .hero h2 {
+            font-size: 27px;
+            margin-bottom: 8px;
+        }
+
+        .hero p {
+            max-width: 650px;
+            color: var(--muted);
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .check-form {
+            display: flex;
+            gap: 10px;
+            max-width: 720px;
+        }
+
+        .check-form input {
+            flex: 1;
+            border: 1px solid var(--border);
+            background: white;
+            padding: 13px 15px;
+            border-radius: 12px;
+            outline: none;
+        }
+
+        .check-form input:focus {
+            border-color: var(--copper);
+        }
+
+        .primary-btn {
+            border: none;
+            background: var(--wine);
+            color: white;
+            padding: 13px 20px;
+            border-radius: 12px;
+            font-weight: 700;
+        }
+
+        .primary-btn:hover {
+            background: var(--orange);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1.4fr .8fr;
+            gap: 18px;
+            margin-bottom: 18px;
+        }
+
+        .card {
+            background: rgba(255,255,255,.78);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 20px;
+        }
+
+        .card-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .card-title h3 {
+            font-size: 16px;
+        }
+
+        .small {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .graph {
+            height: 210px;
+            display: flex;
+            align-items: flex-end;
+            gap: 5px;
+            padding: 15px 3px 3px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .bar {
+            flex: 1;
+            min-width: 4px;
+            max-width: 18px;
+            background: linear-gradient(to top, var(--moss), var(--olive));
+            border-radius: 5px 5px 1px 1px;
+            opacity: .9;
+        }
+
+        .graph-empty {
+            height: 100%;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .status-big {
+            font-size: 36px;
+            font-weight: 800;
+            margin: 10px 0 5px;
+            color: var(--green);
+        }
+
+        .status-big.down {
+            color: var(--red);
+        }
+
+        .metric-list {
+            display: grid;
+            gap: 9px;
+            margin-top: 18px;
+        }
+
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 8px;
+            font-size: 13px;
+        }
+
+        .metric span:first-child {
+            color: var(--muted);
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 13px 10px;
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+        }
+
+        th {
+            color: var(--muted);
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: .8px;
+        }
+
+        .pill {
+            display: inline-block;
+            padding: 5px 9px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .pill.up {
+            background: #DCE9D5;
+            color: #496441;
+        }
+
+        .pill.down {
+            background: #F4D6D0;
+            color: #9A392D;
+        }
+
+        .pill.waiting {
+            background: #F4EBD3;
+            color: #7C6A32;
+        }
+
+        .delete-btn {
+            border: none;
+            background: transparent;
+            color: var(--red);
+            font-weight: 700;
+            font-size: 12px;
+        }
+
+        .activity {
+            display: grid;
+            gap: 11px;
+        }
+
+        .activity-item {
+            display: flex;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .activity-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--moss);
+            margin-top: 5px;
+            flex-shrink: 0;
+        }
+
+        .activity-text {
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 18px 0;
+            border-bottom: 1px solid var(--border);
+            gap: 20px;
+        }
+
+        .setting-row h4 {
+            margin-bottom: 4px;
+        }
+
+        .setting-row p {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        select {
+            border: 1px solid var(--border);
+            background: white;
+            padding: 9px 12px;
+            border-radius: 10px;
+        }
+
+        .toggle {
+            width: 48px;
+            height: 27px;
+            border-radius: 20px;
+            background: #B5B7A3;
+            border: none;
+            position: relative;
+        }
+
+        .toggle::after {
+            content: "";
+            position: absolute;
+            width: 21px;
+            height: 21px;
+            background: white;
+            border-radius: 50%;
+            top: 3px;
+            left: 3px;
+            transition: .2s;
+        }
+
+        .toggle.on {
+            background: var(--moss);
+        }
+
+        .toggle.on::after {
+            left: 24px;
+        }
+
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+        }
+
+        .step {
+            background: rgba(255,255,255,.75);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 20px;
+        }
+
+        .step-number {
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--apricot);
+            border-radius: 50%;
+            font-weight: 800;
+            margin-bottom: 14px;
+        }
+
+        .step h3 {
+            margin-bottom: 8px;
+            font-size: 15px;
+        }
+
+        .step p {
+            color: var(--muted);
+            line-height: 1.5;
+            font-size: 12px;
+        }
+
+        .empty {
+            padding: 35px;
+            text-align: center;
+            color: var(--muted);
+        }
+
+        .notice {
+            margin-top: 15px;
+            padding: 12px 15px;
+            background: #F6E4D8;
+            border-left: 4px solid var(--copper);
+            font-size: 12px;
+            display: none;
+        }
+
+        @media (max-width: 950px) {
+            .sidebar {
+                width: 190px;
+            }
+
+            .main {
+                margin-left: 190px;
+                width: calc(100% - 190px);
+                padding: 20px;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .steps {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 700px) {
+            .sidebar {
+                position: relative;
+                width: 100%;
+                min-height: auto;
+            }
+
+            .app {
+                display: block;
+            }
+
+            .main {
+                margin-left: 0;
+                width: 100%;
+            }
+
+            .sidebar-bottom {
+                display: none;
+            }
+
+            .check-form {
+                flex-direction: column;
+            }
+
+            .steps {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="app">
+
+    <aside class="sidebar">
+
+        <div class="brand">
+            <div class="brand-name">Veyra</div>
+            <div class="brand-sub">Website health monitoring</div>
+        </div>
+
+        <nav class="nav">
+
+            <button class="active" onclick="showPage('dashboard', this)">
+                Dashboard
+            </button>
+
+            <button onclick="showPage('websites', this)">
+                Websites
+            </button>
+
+            <button onclick="showPage('history', this)">
+                Check history
+            </button>
+
+            <button onclick="showPage('how', this)">
+                How it works
+            </button>
+
+            <button onclick="showPage('settings', this)">
+                Settings
+            </button>
+
+        </nav>
+
+        <div class="sidebar-bottom">
+            Veyra continuously checks your websites and reports when something changes.
+        </div>
+
+    </aside>
+
+
+    <main class="main">
+
+        <div class="topbar">
+
+            <div>
+                <div class="eyebrow">Website operations</div>
+                <h1 id="pageTitle">Hey, let's see what's happening</h1>
+            </div>
+
+            <div class="live-status">
+                <span class="dot" id="systemDot"></span>
+                <span id="systemText">Checking system...</span>
+            </div>
+
+        </div>
+
+
+        <!-- DASHBOARD -->
+
+        <section id="dashboard" class="page active">
+
+            <div class="hero">
+
+                <h2>Your websites are being watched.</h2>
+
+                <p>
+                    Veyra checks availability, HTTP status, response time and
+                    SSL security so you can quickly see when something feels off.
+                </p>
+
+                <div class="check-form">
+
+                    <input
+                        id="urlInput"
+                        type="url"
+                        placeholder="https://example.com"
+                    >
+
+                    <button class="primary-btn" onclick="checkWebsite()">
+                        Give it a little check →
+                    </button>
+
+                </div>
+
+                <div class="notice" id="notice"></div>
+
+            </div>
+
+
+            <div class="grid">
+
+                <div class="card">
+
+                    <div class="card-title">
+                        <h3>How fast did it answer?</h3>
+                        <span class="small" id="graphLabel">
+                            No checks yet
+                        </span>
+                    </div>
+
+                    <div class="graph" id="responseGraph">
+
+                        <div class="graph-empty">
+                            Give your first website a check.
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="card">
+
+                    <div class="card-title">
+                        <h3>System status</h3>
+                        <span class="small">Live</span>
+                    </div>
+
+                    <div class="status-big" id="backendStatus">
+                        —
+                    </div>
+
+                    <div class="small">
+                        Backend
+                    </div>
+
+                    <div class="metric-list">
+
+                        <div class="metric">
+                            <span>Database</span>
+                            <strong id="databaseStatus">—</strong>
+                        </div>
+
+                        <div class="metric">
+                            <span>Monitoring</span>
+                            <strong id="monitoringStatus">—</strong>
+                        </div>
+
+                        <div class="metric">
+                            <span>Websites</span>
+                            <strong id="websiteCount">0</strong>
+                        </div>
+
+                        <div class="metric">
+                            <span>Open incidents</span>
+                            <strong id="incidentCount">0</strong>
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="card">
+
+                <div class="card-title">
+
+                    <h3>What happened lately</h3>
+
+                    <span class="small">
+                        Real monitoring activity
+                    </span>
+
+                </div>
+
+                <div class="activity" id="activityList">
+
+                    <div class="empty">
+                        Nothing here yet — give your first website a check.
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- WEBSITES -->
+
+        <section id="websites" class="page">
+
+            <div class="card">
+
+                <div class="card-title">
+
+                    <div>
+
+                        <h3>Monitored websites</h3>
+
+                        <div class="small">
+                            Websites currently watched by Veyra
+                        </div>
+
+                    </div>
+
+                    <button
+                        class="primary-btn"
+                        onclick="focusUrlInput()">
+                        + Add website
+                    </button>
+
+                </div>
+
+
+                <div class="table-wrap">
+
+                    <table>
+
+                        <thead>
+
+                            <tr>
+                                <th>Website</th>
+                                <th>Status</th>
+                                <th>HTTP</th>
+                                <th>Response</th>
+                                <th>SSL</th>
+                                <th></th>
+                            </tr>
+
+                        </thead>
+
+                        <tbody id="websitesTable">
+
+                            <tr>
+
+                                <td colspan="6" class="empty">
+                                    Loading...
+                                </td>
+
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- HISTORY -->
+
+        <section id="history" class="page">
+
+            <div class="card">
+
+                <div class="card-title">
+
+                    <div>
+
+                        <h3>Check history</h3>
+
+                        <div class="small">
+                            Previous health checks recorded by Veyra
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="table-wrap">
+
+                    <table>
+
+                        <thead>
+
+                            <tr>
+                                <th>Website</th>
+                                <th>Status</th>
+                                <th>HTTP</th>
+                                <th>Response</th>
+                                <th>SSL</th>
+                                <th>Checked</th>
+                            </tr>
+
+                        </thead>
+
+                        <tbody id="historyTable">
+
+                            <tr>
+
+                                <td colspan="6" class="empty">
+                                    Loading...
+                                </td>
+
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- HOW IT WORKS -->
+
+        <section id="how" class="page">
+
+            <div
+                class="card"
+                style="margin-bottom:18px">
+
+                <div class="eyebrow">
+                    Simple monitoring
+                </div>
+
+                <h2 style="margin-bottom:10px">
+                    What does Veyra actually check?
+                </h2>
+
+                <p
+                    class="small"
+                    style="max-width:700px;line-height:1.7">
+
+                    You don't need to understand servers or networking to use Veyra.
+                    It checks the important parts of a website and turns the results
+                    into simple information.
+
+                </p>
+
+            </div>
+
+
+            <div class="steps">
+
+                <div class="step">
+
+                    <div class="step-number">
+                        1
+                    </div>
+
+                    <h3>
+                        Availability
+                    </h3>
+
+                    <p>
+                        Veyra connects to your website to see whether it can be reached.
+                    </p>
+
+                </div>
+
+
+                <div class="step">
+
+                    <div class="step-number">
+                        2
+                    </div>
+
+                    <h3>
+                        HTTP status
+                    </h3>
+
+                    <p>
+                        It checks the server response such as 200, 404 or 500.
+                    </p>
+
+                </div>
+
+
+                <div class="step">
+
+                    <div class="step-number">
+                        3
+                    </div>
+
+                    <h3>
+                        Response time
+                    </h3>
+
+                    <p>
+                        Veyra measures how long the website takes to respond.
+                    </p>
+
+                </div>
+
+
+                <div class="step">
+
+                    <div class="step-number">
+                        4
+                    </div>
+
+                    <h3>
+                        SSL security
+                    </h3>
+
+                    <p>
+                        It checks whether HTTPS is valid and how many days remain
+                        before the certificate expires.
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <div
+                class="card"
+                style="margin-top:18px">
+
+                <h3 style="margin-bottom:10px">
+                    Why retries?
+                </h3>
+
+                <p
+                    class="small"
+                    style="line-height:1.7">
+
+                    A single failed request does not always mean that a website is
+                    actually down. Veyra can retry the check before creating an
+                    incident, reducing false alarms.
+
+                </p>
+
+            </div>
+
+        </section>
+
+
+        <!-- SETTINGS -->
+
+        <section id="settings" class="page">
+
+            <div class="card">
+
+                <div class="card-title">
+
+                    <div>
+
+                        <h3>
+                            Monitoring settings
+                        </h3>
+
+                        <div class="small">
+                            Control how Veyra watches your websites.
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="setting-row">
+
+                    <div>
+
+                        <h4>
+                            Automatic monitoring
+                        </h4>
+
+                        <p>
+                            Automatically check monitored websites.
+                        </p>
+
+                    </div>
+
+                    <button
+                        class="toggle"
+                        id="monitorToggle"
+                        onclick="toggleMonitoring()">
+                    </button>
+
+                </div>
+
+
+                <div class="setting-row">
+
+                    <div>
+
+                        <h4>
+                            Monitoring interval
+                        </h4>
+
+                        <p>
+                            How often Veyra performs automatic checks.
+                        </p>
+
+                    </div>
+
+                    <select id="intervalSelect">
+
+                        <option value="1">
+                            1 minute
+                        </option>
+
+                        <option value="5">
+                            5 minutes
+                        </option>
+
+                        <option value="10">
+                            10 minutes
+                        </option>
+
+                        <option value="15">
+                            15 minutes
+                        </option>
+
+                        <option value="30">
+                            30 minutes
+                        </option>
+
+                        <option value="60">
+                            1 hour
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <div class="setting-row">
+
+                    <div>
+
+                        <h4>
+                            Retry attempts
+                        </h4>
+
+                        <p>
+                            Additional attempts before a failure is confirmed.
+                        </p>
+
+                    </div>
+
+                    <select id="retrySelect">
+
+                        <option value="0">
+                            No retries
+                        </option>
+
+                        <option value="1">
+                            1 retry
+                        </option>
+
+                        <option value="2">
+                            2 retries
+                        </option>
+
+                        <option value="3">
+                            3 retries
+                        </option>
+
+                        <option value="5">
+                            5 retries
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <div style="margin-top:20px">
+
+                    <button
+                        class="primary-btn"
+                        onclick="saveSettings()">
+
+                        Save settings
+
+                    </button>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+
+<script>
+
+    /*
+        Flask API:
+        http://127.0.0.1:5000
+
+        Live Server:
+        http://127.0.0.1:5500
+
+        All backend requests therefore use port 5000.
+    */
+
+    const API_BASE = "http://127.0.0.1:5000/api";
+
+    let monitoringEnabled = true;
+
+
+    /* =========================
+       API HELPER
+    ========================= */
+
+    async function api(endpoint, options = {}) {
+
+        const response = await fetch(
+            API_BASE + endpoint,
+            {
+                ...options,
+
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(options.headers || {})
+                }
+            }
+        );
+
+        if (!response.ok) {
+
+            let message = `API error ${response.status}`;
+
+            try {
+
+                const errorData =
+                    await response.json();
+
+                if (errorData.message) {
+                    message = errorData.message;
+                }
+
+                if (errorData.error) {
+                    message = errorData.error;
+                }
+
+            } catch (_) {}
+
+            throw new Error(message);
+        }
+
+        return response.json();
+    }
+
+
+    /* =========================
+       PAGE NAVIGATION
+    ========================= */
+
+    function showPage(pageId, button) {
+
+        document.querySelectorAll(".page").forEach(page => {
+            page.classList.remove("active");
+        });
+
+        const page =
+            document.getElementById(pageId);
+
+        if (page) {
+            page.classList.add("active");
+        }
+
+
+        document.querySelectorAll(".nav button").forEach(btn => {
+            btn.classList.remove("active");
+        });
+
+        if (button) {
+            button.classList.add("active");
+        }
+
+
+        const titles = {
+
+            dashboard:
+                "Hey, let's see what's happening",
+
+            websites:
+                "Your monitored websites",
+
+            history:
+                "Check history",
+
+            how:
+                "How Veyra works",
+
+            settings:
+                "Monitoring settings"
+
+        };
+
+
+        document.getElementById("pageTitle").textContent =
+            titles[pageId] || "Veyra";
+
+
+        if (pageId === "dashboard") {
+            loadAllData();
+        }
+
+        if (pageId === "websites") {
+            loadWebsites();
+        }
+
+        if (pageId === "history") {
+            loadHistory();
+        }
+
+        if (pageId === "settings") {
+            loadSettings();
+        }
+    }
+
+
+    /* =========================
+       NOTICE
+    ========================= */
+
+    function showNotice(message) {
+
+        const notice =
+            document.getElementById("notice");
+
+        notice.textContent = message;
+
+        notice.style.display = "block";
+
+        setTimeout(() => {
+            notice.style.display = "none";
+        }, 5000);
+    }
+
+
+    /* =========================
+       CHECK + ADD WEBSITE
+    ========================= */
+
+    async function checkWebsite() {
+
+        const input =
+            document.getElementById("urlInput");
+
+        let url =
+            input.value.trim();
+
+
+        if (!url) {
+
+            showNotice(
+                "Enter a website URL first."
+            );
+
+            return;
+        }
+
+
+        if (
+            !url.startsWith("http://") &&
+            !url.startsWith("https://")
+        ) {
+
+            url = "https://" + url;
+        }
+
+
+        try {
+
+            showNotice(
+                "Adding website and checking it..."
+            );
+
+
+            /*
+                IMPORTANT:
+
+                When the user checks ANY website,
+                automatically add it to the monitoring list.
+
+                If it already exists, the backend may return
+                an error such as "Website already exists".
+                That is harmless, so we continue.
+            */
+
+            try {
+
+                await api(
+                    "/websites",
+                    {
+                        method: "POST",
+
+                        body: JSON.stringify({
+                            url: url
+                        })
+                    }
+                );
+
+            } catch (addError) {
+
+                console.log(
+                    "Website may already be monitored:",
+                    addError.message
+                );
+            }
+
+
+            /*
+                Now perform the actual health check.
+            */
+
+            const result =
+                await api(
+                    "/health-check",
+                    {
+                        method: "POST",
+
+                        body: JSON.stringify({
+                            url: url
+                        })
+                    }
+                );
+
+
+            /*
+                Refresh ALL real data.
+            */
+
+            await loadAllData();
+
+
+            input.value = "";
+
+
+            showNotice(
+                `${result.status} — ${result.url} responded in ${Number(result.response_time_ms).toFixed(0)} ms.`
+            );
+
+
+        } catch (error) {
+
+            console.error(
+                "Website check error:",
+                error
+            );
+
+            showNotice(
+                "The website could not be checked."
+            );
+        }
+    }
+
+
+    /* =========================
+       ADD WEBSITE
+    ========================= */
+
+    async function addWebsite(url) {
+
+        try {
+
+            await api(
+                "/websites",
+                {
+                    method: "POST",
+
+                    body: JSON.stringify({
+                        url: url
+                    })
+                }
+            );
+
+
+            await loadAllData();
+
+
+            showNotice(
+                "Website added successfully."
+            );
+
+
+        } catch (error) {
+
+            console.error(error);
+
+            showNotice(
+                "Could not add the website."
+            );
+        }
+    }
+
+
+    /* =========================
+       DELETE WEBSITE
+    ========================= */
+
+    async function deleteWebsite(id) {
+
+        try {
+
+            await api(
+                `/websites/${id}`,
+                {
+                    method: "DELETE"
+                }
+            );
+
+
+            await loadAllData();
+
+
+            showNotice(
+                "Website removed."
+            );
+
+
+        } catch (error) {
+
+            console.error(error);
+
+            showNotice(
+                "Could not remove the website."
+            );
+        }
+    }
+
+
+    /* =========================
+       LOAD WEBSITES
+    ========================= */
+
+    async function loadWebsites() {
+
+        try {
+
+            const websites =
+                await api("/websites");
+
+
+            const table =
+                document.getElementById(
+                    "websitesTable"
+                );
+
+
+            if (!websites.length) {
+
+                table.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="empty">
+                            No websites are being monitored yet.
+                        </td>
+                    </tr>
+                `;
+
+                return;
+            }
+
+
+            table.innerHTML =
+                websites.map(site => {
+
+                    const status =
+                        site.status || "WAITING";
+
+
+                    const statusClass =
+                        status === "UP"
+                            ? "up"
+                            : status === "DOWN"
+                                ? "down"
+                                : "waiting";
+
+
+                    const response =
+                        site.response_time_ms != null
+                            ? `${Number(site.response_time_ms).toFixed(0)} ms`
+                            : "—";
+
+
+                    const http =
+                        site.http_status ||
+                        "—";
+
+
+                    let ssl = "—";
+
+                    if (site.ssl_valid === true) {
+
+                        if (
+                            site.ssl_days_remaining != null
+                        ) {
+
+                            ssl =
+                                `Valid · ${site.ssl_days_remaining}d`;
+
+                        } else {
+
+                            ssl = "Valid";
+                        }
+
+                    } else if (
+                        site.ssl_valid === false
+                    ) {
+
+                        ssl = "Invalid";
+                    }
+
+
+                    return `
+
+                        <tr>
+
+                            <td>
+                                <strong>
+                                    ${escapeHtml(site.url)}
+                                </strong>
+                            </td>
+
+                            <td>
+
+                                <span
+                                    class="pill ${statusClass}">
+
+                                    ${status}
+
+                                </span>
+
+                            </td>
+
+                            <td>
+                                ${http}
+                            </td>
+
+                            <td>
+                                ${response}
+                            </td>
+
+                            <td>
+                                ${ssl}
+                            </td>
+
+                            <td>
+
+                                <button
+                                    class="delete-btn"
+                                    onclick="deleteWebsite(${site.id})">
+
+                                    Remove
+
+                                </button>
+
+                            </td>
+
+                        </tr>
+
+                    `;
+
+                }).join("");
+
+
+        } catch (error) {
+
+            console.error(
+                "Website loading error:",
+                error
+            );
+
+
+            document.getElementById(
+                "websitesTable"
+            ).innerHTML = `
+
+                <tr>
+
+                    <td
+                        colspan="6"
+                        class="empty">
+
+                        Could not load websites.
+
+                    </td>
+
+                </tr>
+
+            `;
+        }
+    }
+
+
+    /* =========================
+       LOAD HISTORY
+    ========================= */
+
+    async function loadHistory() {
+
+        try {
+
+            const history =
+                await api("/health-history");
+
+
+            const table =
+                document.getElementById(
+                    "historyTable"
+                );
+
+
+            if (!history.length) {
+
+                table.innerHTML = `
+
+                    <tr>
+
+                        <td
+                            colspan="6"
+                            class="empty">
+
+                            No health checks recorded yet.
+
+                        </td>
+
+                    </tr>
+
+                `;
+
+                return;
+            }
+
+
+            table.innerHTML =
+                history.map(item => {
+
+                    const status =
+                        item.status || "—";
+
+
+                    const statusClass =
+                        status === "UP"
+                            ? "up"
+                            : status === "DOWN"
+                                ? "down"
+                                : "waiting";
+
+
+                    const response =
+                        item.response_time_ms != null
+                            ? `${Number(item.response_time_ms).toFixed(0)} ms`
+                            : "—";
+
+
+                    let ssl = "—";
+
+
+                    if (item.ssl_valid === true) {
+
+                        ssl = "Valid";
+
+                    } else if (
+                        item.ssl_valid === false
+                    ) {
+
+                        ssl = "Invalid";
+                    }
+
+
+                    return `
+
+                        <tr>
+
+                            <td>
+                                ${escapeHtml(
+                                    item.url || "—"
+                                )}
+                            </td>
+
+                            <td>
+
+                                <span
+                                    class="pill ${statusClass}">
+
+                                    ${status}
+
+                                </span>
+
+                            </td>
+
+                            <td>
+                                ${item.http_status || "—"}
+                            </td>
+
+                            <td>
+                                ${response}
+                            </td>
+
+                            <td>
+                                ${ssl}
+                            </td>
+
+                            <td>
+                                ${formatDate(
+                                    item.checked_at
+                                )}
+                            </td>
+
+                        </tr>
+
+                    `;
+
+                }).join("");
+
+
+        } catch (error) {
+
+            console.error(
+                "History loading error:",
+                error
+            );
+
+
+            document.getElementById(
+                "historyTable"
+            ).innerHTML = `
+
+                <tr>
+
+                    <td
+                        colspan="6"
+                        class="empty">
+
+                        Could not load history.
+
+                    </td>
+
+                </tr>
+
+            `;
+        }
+    }
+
+
+    /* =========================
+       SYSTEM STATUS
+    ========================= */
+
+    async function loadSystemStatus() {
+
+        try {
+
+            const data =
+                await api("/system-status");
+
+
+            document.getElementById(
+                "backendStatus"
+            ).textContent =
+                data.backend || "—";
+
+
+            document.getElementById(
+                "databaseStatus"
+            ).textContent =
+                data.database || "—";
+
+
+            document.getElementById(
+                "websiteCount"
+            ).textContent =
+                data.monitored_websites ?? 0;
+
+
+            document.getElementById(
+                "incidentCount"
+            ).textContent =
+                data.open_incidents ?? 0;
+
+
+            const backendUp =
+                data.backend === "UP";
+
+
+            const dot =
+                document.getElementById(
+                    "systemDot"
+                );
+
+
+            const systemText =
+                document.getElementById(
+                    "systemText"
+                );
+
+
+            const backendStatus =
+                document.getElementById(
+                    "backendStatus"
+                );
+
+
+            if (backendUp) {
+
+                dot.classList.remove("red");
+
+                systemText.textContent =
+                    "All systems operational";
+
+                backendStatus.classList.remove(
+                    "down"
+                );
+
+            } else {
+
+                dot.classList.add("red");
+
+                systemText.textContent =
+                    "System issue detected";
+
+                backendStatus.classList.add(
+                    "down"
+                );
+            }
+
+
+        } catch (error) {
+
+            console.error(
+                "System status error:",
+                error
+            );
+
+
+            document.getElementById(
+                "backendStatus"
+            ).textContent = "DOWN";
+
+
+            document.getElementById(
+                "backendStatus"
+            ).classList.add("down");
+
+
+            document.getElementById(
+                "systemDot"
+            ).classList.add("red");
+
+
+            document.getElementById(
+                "systemText"
+            ).textContent =
+                "Backend unavailable";
+        }
+    }
+
+
+    /* =========================
+       MONITORING STATUS
+    ========================= */
+
+    async function loadMonitoringStatus() {
+
+        try {
+
+            const data =
+                await api(
+                    "/monitoring/status"
+                );
+
+
+            monitoringEnabled =
+                data.monitoring_enabled;
+
+
+            document.getElementById(
+                "monitoringStatus"
+            ).textContent =
+                data.monitoring_enabled
+                    ? `ON · every ${data.monitoring_interval_minutes} min`
+                    : "OFF";
+
+
+        } catch (error) {
+
+            console.error(
+                "Monitoring status error:",
+                error
+            );
+
+
+            document.getElementById(
+                "monitoringStatus"
+            ).textContent = "—";
+        }
+    }
+
+
+    /* =========================
+       RESPONSE GRAPH
+    ========================= */
+
+    async function loadGraph() {
+
+        try {
+
+            const history =
+                await api(
+                    "/health-history"
+                );
+
+
+            const graph =
+                document.getElementById(
+                    "responseGraph"
+                );
+
+
+            const valid =
+                history
+                    .filter(
+                        item =>
+                            item.response_time_ms != null
+                    )
+                    .slice(-25);
+
+
+            if (!valid.length) {
+
+                graph.innerHTML = `
+
+                    <div class="graph-empty">
+                        No response-time data yet.
+                    </div>
+
+                `;
+
+
+                document.getElementById(
+                    "graphLabel"
+                ).textContent =
+                    "No checks yet";
+
+
+                return;
+            }
+
+
+            const max =
+                Math.max(
+                    ...valid.map(
+                        item =>
+                            Number(
+                                item.response_time_ms
+                            )
+                    )
+                );
+
+
+            graph.innerHTML =
+                valid.map(item => {
+
+                    const value =
+                        Number(
+                            item.response_time_ms
+                        );
+
+
+                    const height =
+                        Math.max(
+                            8,
+                            (
+                                value /
+                                Math.max(max, 1)
+                            ) * 175
+                        );
+
+
+                    return `
+
+                        <div
+                            class="bar"
+                            title="${value.toFixed(0)} ms"
+                            style="height:${height}px">
+                        </div>
+
+                    `;
+
+                }).join("");
+
+
+            document.getElementById(
+                "graphLabel"
+            ).textContent =
+                `${valid.length} recent checks`;
+
+
+        } catch (error) {
+
+            console.error(
+                "Graph loading error:",
+                error
+            );
+        }
+    }
+
+
+    /* =========================
+       ACTIVITY
+    ========================= */
+
+    async function loadActivity() {
+
+        try {
+
+            const [
+                history,
+                incidents
+            ] =
+                await Promise.all([
+
+                    api("/health-history"),
+
+                    api("/incidents")
+
+                ]);
+
+
+            const activity =
+                document.getElementById(
+                    "activityList"
+                );
+
+
+            const events = [];
+
+
+            history
+                .slice(-8)
+                .reverse()
+                .forEach(item => {
+
+                    events.push({
+
+                        time:
+                            item.checked_at,
+
+                        text:
+                            `${item.url} checked — ${item.status || "WAITING"}`
+
+                    });
+
+                });
+
+
+            incidents
+                .slice(-5)
+                .reverse()
+                .forEach(item => {
+
+                    events.push({
+
+                        time:
+                            item.started_at,
+
+                        text:
+                            `${item.url} — ${item.incident_type || "Incident"}`
+
+                    });
+
+                });
+
+
+            events.sort(
+                (a, b) =>
+                    new Date(b.time) -
+                    new Date(a.time)
+            );
+
+
+            if (!events.length) {
+
+                activity.innerHTML = `
+
+                    <div class="empty">
+                        Nothing here yet — give your first website a check.
+                    </div>
+
+                `;
+
+                return;
+            }
+
+
+            activity.innerHTML =
+                events
+                    .slice(0, 8)
+                    .map(event => {
+
+                        return `
+
+                            <div class="activity-item">
+
+                                <div class="activity-dot"></div>
+
+                                <div class="activity-text">
+
+                                    <strong>
+                                        ${escapeHtml(
+                                            event.text
+                                        )}
+                                    </strong>
+
+                                    <div class="small">
+                                        ${formatDate(
+                                            event.time
+                                        )}
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        `;
+
+                    })
+                    .join("");
+
+
+        } catch (error) {
+
+            console.error(
+                "Activity loading error:",
+                error
+            );
+        }
+    }
+
+
+    /* =========================
+       LOAD EVERYTHING
+    ========================= */
+
+    async function loadAllData() {
+
+        try {
+
+            await Promise.all([
+
+                loadSystemStatus(),
+
+                loadMonitoringStatus(),
+
+                loadWebsites(),
+
+                loadHistory(),
+
+                loadGraph(),
+
+                loadActivity()
+
+            ]);
+
+
+            console.log(
+                "Veyra data loaded successfully."
+            );
+
+
+        } catch (error) {
+
+            console.error(
+                "Veyra data loading error:",
+                error
+            );
+        }
+    }
+
+
+    /* =========================
+       SETTINGS
+    ========================= */
+
+    async function loadSettings() {
+
+        try {
+
+            const settings =
+                await api("/settings");
+
+
+            monitoringEnabled =
+                settings.monitoring_enabled;
+
+
+            const toggle =
+                document.getElementById(
+                    "monitorToggle"
+                );
+
+
+            if (monitoringEnabled) {
+
+                toggle.classList.add("on");
+
+            } else {
+
+                toggle.classList.remove("on");
+            }
+
+
+            document.getElementById(
+                "intervalSelect"
+            ).value =
+                String(
+                    settings.monitoring_interval_minutes
+                );
+
+
+            document.getElementById(
+                "retrySelect"
+            ).value =
+                String(
+                    settings.max_retries
+                );
+
+
+        } catch (error) {
+
+            console.error(
+                "Settings loading error:",
+                error
+            );
+
+
+            showNotice(
+                "Could not load monitoring settings."
+            );
+        }
+    }
+
+
+    function toggleMonitoring() {
+
+        monitoringEnabled =
+            !monitoringEnabled;
+
+
+        const toggle =
+            document.getElementById(
+                "monitorToggle"
+            );
+
+
+        toggle.classList.toggle(
+            "on",
+            monitoringEnabled
+        );
+    }
+
+
+    async function saveSettings() {
+
+        const interval =
+            Number(
+                document.getElementById(
+                    "intervalSelect"
+                ).value
+            );
+
+
+        const retries =
+            Number(
+                document.getElementById(
+                    "retrySelect"
+                ).value
+            );
+
+
+        try {
+
+            await api(
+                "/settings",
+                {
+
+                    method: "PUT",
+
+                    body: JSON.stringify({
+
+                        monitoring_enabled:
+                            monitoringEnabled,
+
+                        monitoring_interval_minutes:
+                            interval,
+
+                        max_retries:
+                            retries
+
+                    })
+
+                }
+            );
+
+
+            showNotice(
+                "Monitoring settings saved."
+            );
+
+
+            await loadMonitoringStatus();
+
+
+        } catch (error) {
+
+            console.error(
+                "Settings save error:",
+                error
+            );
+
+
+            showNotice(
+                "Could not save settings."
+            );
+        }
+    }
+
+
+    /* =========================
+       UTILITIES
+    ========================= */
+
+    function formatDate(value) {
+
+        if (!value) {
+            return "—";
+        }
+
+
+        try {
+
+            return new Date(
+                value
+            ).toLocaleString();
+
+
+        } catch {
+
+            return value;
+        }
+    }
+
+
+    function escapeHtml(value) {
+
+        if (value == null) {
+            return "";
+        }
+
+
+        return String(value)
+
+            .replaceAll(
+                "&",
+                "&amp;"
+            )
+
+            .replaceAll(
+                "<",
+                "&lt;"
+            )
+
+            .replaceAll(
+                ">",
+                "&gt;"
+            )
+
+            .replaceAll(
+                '"',
+                "&quot;"
+            )
+
+            .replaceAll(
+                "'",
+                "&#039;"
+            );
+    }
+
+
+    function focusUrlInput() {
+
+        const dashboardButton =
+            document.querySelector(
+                ".nav button"
+            );
+
+
+        showPage(
+            "dashboard",
+            dashboardButton
+        );
+
+
+        setTimeout(() => {
+
+            document.getElementById(
+                "urlInput"
+            ).focus();
+
+        }, 100);
+    }
+
+
+    /* =========================
+       STARTUP
+    ========================= */
+
+    loadAllData();
+
+
+    setInterval(
+        loadAllData,
+        30000
+    );
+
+</script>
+
+</body>
+</html>
