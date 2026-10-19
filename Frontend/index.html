@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -499,6 +500,43 @@
             display: none;
         }
 
+
+        /* Live health-check progress and email settings */
+        .check-progress {
+            display: none;
+            margin-top: 16px;
+            padding: 18px;
+            background: rgba(255, 248, 239, .92);
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--wine);
+            border-radius: 14px;
+        }
+        .check-progress.visible { display: block; }
+        .progress-heading { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+        .progress-heading strong { color:var(--wine); }
+        .progress-track { height:8px; margin:12px 0; overflow:hidden; background:#E4E3D7; border-radius:20px; }
+        .progress-fill { width:8%; height:100%; background:linear-gradient(90deg,var(--apricot),var(--wine)); border-radius:inherit; transition:width .3s ease; }
+        .progress-details { color:var(--muted); font-size:12px; line-height:1.6; overflow-wrap:anywhere; }
+        .progress-result { margin-top:8px; font-size:13px; font-weight:800; }
+        .progress-result.success { color:var(--green); }
+        .progress-result.failure { color:var(--red); }
+        .settings-input { width:min(340px, 100%); padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:white; }
+        .secondary-btn { border:1px solid var(--border); background:#fffaf4; color:var(--wine); padding:10px 14px; border-radius:10px; font-weight:700; }
+        .secondary-btn:hover { background:#F7E9D5; }
+        .setting-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:20px; }
+        .setting-help { color:var(--muted); font-size:12px; line-height:1.6; margin-top:10px; }
+        .progress-spinner { display:inline-block; width:12px; height:12px; margin-right:7px; border:2px solid #E4D5CB; border-top-color:var(--wine); border-radius:50%; animation:veyra-spin .8s linear infinite; vertical-align:middle; }
+        @keyframes veyra-spin { to { transform:rotate(360deg); } }
+
+
+        .account-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; margin-bottom:18px; }
+        .account-form { display:flex; flex-direction:column; gap:10px; }
+        .account-form input, .account-form select { width:100%; padding:12px 13px; border:1px solid var(--border); border-radius:10px; background:#fff; }
+        .account-form button { align-self:flex-start; }
+        .subscription-row { display:flex; align-items:center; justify-content:space-between; gap:12px; border-top:1px solid var(--border); padding:13px 0; }
+        .account-message { font-size:13px; line-height:1.5; margin-top:10px; color:var(--wine); white-space:pre-wrap; }
+        .account-small { font-size:12px; color:var(--muted); line-height:1.5; margin-top:8px; }
+
         @media (max-width: 950px) {
             .sidebar {
                 width: 190px;
@@ -579,6 +617,10 @@
                 How it works
             </button>
 
+            <button onclick="showPage('account', this)">
+                Account & alerts
+            </button>
+
             <button onclick="showPage('settings', this)">
                 Settings
             </button>
@@ -637,6 +679,17 @@
                 </div>
 
                 <div class="notice" id="notice"></div>
+
+                <div class="check-progress" id="checkProgress" role="status" aria-live="polite">
+                    <div class="progress-heading">
+                        <strong id="progressTitle">Checking website health</strong>
+                        <span class="small" id="progressAttempt">Preparing check...</span>
+                    </div>
+                    <div class="progress-details" id="progressMessage">Connecting to the health-check engine.</div>
+                    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+                    <div class="progress-details" id="progressUrl"></div>
+                    <div class="progress-result" id="progressResult"></div>
+                </div>
 
             </div>
 
@@ -981,6 +1034,56 @@
         </section>
 
 
+        <!-- ACCOUNT AND SUBSCRIPTIONS -->
+        <section id="account" class="page">
+            <div class="hero">
+                <h2>Your alerts, your inbox.</h2>
+                <p>Create an account and verify your email. Then choose which monitored websites should send you outage and recovery notifications.</p>
+                <div id="accountStatus" class="account-message">You are not logged in.</div>
+                <button class="secondary-btn" id="logoutBtn" onclick="logoutAccount()" style="display:none;margin-top:12px">Log out</button>
+            </div>
+            <div class="account-grid">
+                <div class="card">
+                    <h3>Create an account</h3><p class="account-small">Use a real email address so you can receive the verification code.</p>
+                    <form class="account-form" onsubmit="registerAccount(event)">
+                        <input id="regName" placeholder="Your name" autocomplete="name" required maxlength="120">
+                        <input id="regEmail" type="email" placeholder="Email address" autocomplete="email" required>
+                        <input id="regPassword" type="password" placeholder="Password (at least 8 characters)" autocomplete="new-password" minlength="8" required>
+                        <button class="primary-btn" type="submit">Create account & send OTP</button>
+                    </form>
+                </div>
+                <div class="card">
+                    <h3>Verify email</h3><p class="account-small">Enter the six-digit code sent to your email. The code expires in 10 minutes.</p>
+                    <form class="account-form" onsubmit="verifyAccount(event)">
+                        <input id="verifyEmail" type="email" placeholder="Email address" required>
+                        <input id="verifyCode" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="6-digit OTP" required>
+                        <button class="primary-btn" type="submit">Verify email</button>
+                        <button class="secondary-btn" type="button" onclick="resendAccountOTP()">Resend code</button>
+                        <button class="secondary-btn" type="button" onclick="resendConfirmationEmail()">Resend confirmation email</button>
+                    </form>
+                </div>
+                <div class="card">
+                    <h3>Log in</h3><p class="account-small">You must verify your email before logging in.</p>
+                    <form class="account-form" onsubmit="loginAccount(event)">
+                        <input id="loginEmail" type="email" placeholder="Email address" autocomplete="email" required>
+                        <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password" required>
+                        <button class="primary-btn" type="submit">Log in</button>
+                    </form>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title"><div><h3>Website alert subscriptions</h3><p class="account-small">Subscribe to any website already listed in Veyra. Alerts are sent only after an incident is confirmed or resolved.</p></div></div>
+                <div class="account-form" style="max-width:520px;margin:14px 0">
+                    <select id="subscriptionWebsite"><option value="">Loading monitored websites...</option></select>
+                    <label><input id="notifyDown" type="checkbox" checked style="width:auto;margin-right:7px">Email me when the website goes DOWN</label>
+                    <label><input id="notifyRecovery" type="checkbox" checked style="width:auto;margin-right:7px">Email me when the website recovers</label>
+                    <button class="primary-btn" onclick="saveSubscription()" type="button">Save subscription</button>
+                </div>
+                <div id="subscriptionList"><p class="account-small">Log in to manage your subscriptions.</p></div>
+                <div id="accountMessage" class="account-message" role="status"></div>
+            </div>
+        </section>
+
         <!-- SETTINGS -->
 
         <section id="settings" class="page">
@@ -1113,17 +1216,27 @@
                 </div>
 
 
-                <div style="margin-top:20px">
-
-                    <button
-                        class="primary-btn"
-                        onclick="saveSettings()">
-
-                        Save settings
-
-                    </button>
-
+                <div class="setting-row">
+                    <div>
+                        <h4>Email alerts</h4>
+                        <p>Send an email when a website goes down or recovers.</p>
+                    </div>
+                    <button class="toggle on" id="emailToggle" type="button" aria-label="Toggle email alerts" onclick="toggleEmailAlerts()"></button>
                 </div>
+
+                <div class="setting-row">
+                    <div>
+                        <h4>Alert recipient</h4>
+                        <p>Email address that should receive Veyra alerts.</p>
+                    </div>
+                    <input class="settings-input" id="alertEmail" type="email" placeholder="you@example.com" autocomplete="email">
+                </div>
+
+                <div class="setting-actions">
+                    <button class="primary-btn" onclick="saveSettings()">Save settings</button>
+                    <button class="secondary-btn" onclick="sendTestEmail()">Send test email</button>
+                </div>
+                <p class="setting-help">Email delivery requires valid SMTP credentials in your project's .env file. A test email confirms whether the current configuration can send messages.</p>
 
             </div>
 
@@ -1149,6 +1262,8 @@
     const API_BASE = "http://127.0.0.1:5000/api";
 
     let monitoringEnabled = true;
+    let emailAlertsEnabled = true;
+    let progressPollTimer = null;
 
 
     /* =========================
@@ -1156,44 +1271,27 @@
     ========================= */
 
     async function api(endpoint, options = {}) {
-
-        const response = await fetch(
-            API_BASE + endpoint,
-            {
-                ...options,
-
-                headers: {
-                    "Content-Type": "application/json",
-                    ...(options.headers || {})
-                }
+        const response = await fetch(API_BASE + endpoint, {
+            ...options,
+            credentials: "include",
+            headers: {
+                "Content-Type": "application/json",
+                ...(options.headers || {})
             }
-        );
+        });
+
+        let data = {};
+        try { data = await response.json(); } catch (_) {}
 
         if (!response.ok) {
-
-            let message = `API error ${response.status}`;
-
-            try {
-
-                const errorData =
-                    await response.json();
-
-                if (errorData.message) {
-                    message = errorData.message;
-                }
-
-                if (errorData.error) {
-                    message = errorData.error;
-                }
-
-            } catch (_) {}
-
-            throw new Error(message);
+            const message = data.error || data.message || `Request failed (HTTP ${response.status}).`;
+            const error = new Error(message);
+            error.status = response.status;
+            error.data = data;
+            throw error;
         }
-
-        return response.json();
+        return data;
     }
-
 
     /* =========================
        PAGE NAVIGATION
@@ -1235,6 +1333,9 @@
 
             how:
                 "How Veyra works",
+
+            account:
+                "Account & alerts",
 
             settings:
                 "Monitoring settings"
@@ -1288,118 +1389,72 @@
     ========================= */
 
     async function checkWebsite() {
-
-        const input =
-            document.getElementById("urlInput");
-
-        let url =
-            input.value.trim();
-
-
-        if (!url) {
-
-            showNotice(
-                "Enter a website URL first."
-            );
-
-            return;
-        }
-
-
-        if (
-            !url.startsWith("http://") &&
-            !url.startsWith("https://")
-        ) {
-
-            url = "https://" + url;
-        }
-
-
-        try {
-
-            showNotice(
-                "Adding website and checking it..."
-            );
-
-
-            /*
-                IMPORTANT:
-
-                When the user checks ANY website,
-                automatically add it to the monitoring list.
-
-                If it already exists, the backend may return
-                an error such as "Website already exists".
-                That is harmless, so we continue.
-            */
-
-            try {
-
-                await api(
-                    "/websites",
-                    {
-                        method: "POST",
-
-                        body: JSON.stringify({
-                            url: url
-                        })
+        const input = document.getElementById("urlInput");
+        let url = input.value.trim();
+        if (!url) { showNotice("Enter a website URL first."); return; }
+        if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+        const panel = document.getElementById("checkProgress");
+        const title = document.getElementById("progressTitle");
+        const attempt = document.getElementById("progressAttempt");
+        const message = document.getElementById("progressMessage");
+        const fill = document.getElementById("progressFill");
+        const urlLabel = document.getElementById("progressUrl");
+        const resultLabel = document.getElementById("progressResult");
+        panel.classList.add("visible");
+        title.innerHTML = '<span class="progress-spinner"></span>Checking website health';
+        attempt.textContent = "Starting...";
+        message.textContent = "Adding the website if it is not already monitored, then running a real health check.";
+        fill.style.width = "8%";
+        urlLabel.textContent = url;
+        resultLabel.textContent = "";
+        resultLabel.className = "progress-result";
+        let pollActive = true;
+        const pollProgress = async () => {
+            while (pollActive) {
+                try {
+                    const p = await api("/check-progress?url=" + encodeURIComponent(url));
+                    if (p.stage) message.textContent = p.message || p.stage;
+                    if (p.attempt && p.max_attempts) {
+                        attempt.textContent = `Attempt ${p.attempt} of ${p.max_attempts}`;
+                        fill.style.width = `${Math.min(94, Math.max(12, (p.attempt / p.max_attempts) * 90))}%`;
                     }
-                );
-
-            } catch (addError) {
-
-                console.log(
-                    "Website may already be monitored:",
-                    addError.message
-                );
+                    if (p.stage === "complete") break;
+                } catch (e) { /* The actual check response remains authoritative. */ }
+                await new Promise(resolve => setTimeout(resolve, 650));
             }
-
-
-            /*
-                Now perform the actual health check.
-            */
-
-            const result =
-                await api(
-                    "/health-check",
-                    {
-                        method: "POST",
-
-                        body: JSON.stringify({
-                            url: url
-                        })
-                    }
-                );
-
-
-            /*
-                Refresh ALL real data.
-            */
-
+        };
+        const pollPromise = pollProgress();
+        try {
+            try {
+                await api("/websites", { method: "POST", body: JSON.stringify({ url }) });
+            } catch (addError) {
+                if (!/already exists/i.test(addError.message)) console.info("Website may already be monitored:", addError.message);
+            }
+            const checkResult = await api("/health-check", { method: "POST", body: JSON.stringify({ url }) });
+            pollActive = false;
+            await pollPromise;
+            fill.style.width = "100%";
+            title.textContent = checkResult.status === "UP" ? "Website check complete" : "Website check finished";
+            attempt.textContent = checkResult.status || "Complete";
+            message.textContent = checkResult.status === "UP" ? "The website responded successfully." : "The website did not pass the confirmed health check.";
+            resultLabel.textContent = `${checkResult.status || "Checked"} · HTTP ${checkResult.http_status ?? "—"} · ${Number(checkResult.response_time_ms || 0).toFixed(0)} ms response`;
+            resultLabel.className = "progress-result " + (checkResult.status === "UP" ? "success" : "failure");
             await loadAllData();
-
-
             input.value = "";
-
-
-            showNotice(
-                `${result.status} — ${result.url} responded in ${Number(result.response_time_ms).toFixed(0)} ms.`
-            );
-
-
+            showNotice(`${checkResult.status} — ${checkResult.url} checked successfully.`);
         } catch (error) {
-
-            console.error(
-                "Website check error:",
-                error
-            );
-
-            showNotice(
-                "The website could not be checked."
-            );
+            pollActive = false;
+            await pollPromise;
+            title.textContent = "Could not complete the check";
+            attempt.textContent = "Check failed";
+            message.textContent = error.message || "The backend could not check this website.";
+            resultLabel.textContent = "Check the backend terminal for more details.";
+            resultLabel.className = "progress-result failure";
+            fill.style.width = "100%";
+            console.error("Website check error:", error);
+            showNotice("Website check failed: " + (error.message || "unknown error"));
         }
     }
-
 
     /* =========================
        ADD WEBSITE
@@ -2229,148 +2284,218 @@
     ========================= */
 
     async function loadSettings() {
-
         try {
-
-            const settings =
-                await api("/settings");
-
-
-            monitoringEnabled =
-                settings.monitoring_enabled;
-
-
-            const toggle =
-                document.getElementById(
-                    "monitorToggle"
-                );
-
-
-            if (monitoringEnabled) {
-
-                toggle.classList.add("on");
-
-            } else {
-
-                toggle.classList.remove("on");
-            }
-
-
-            document.getElementById(
-                "intervalSelect"
-            ).value =
-                String(
-                    settings.monitoring_interval_minutes
-                );
-
-
-            document.getElementById(
-                "retrySelect"
-            ).value =
-                String(
-                    settings.max_retries
-                );
-
-
+            const settings = await api("/settings");
+            monitoringEnabled = settings.monitoring_enabled === true || String(settings.monitoring_enabled).toLowerCase() === "true";
+            emailAlertsEnabled = settings.email_alerts_enabled === true || String(settings.email_alerts_enabled).toLowerCase() === "true";
+            document.getElementById("monitorToggle").classList.toggle("on", monitoringEnabled);
+            document.getElementById("emailToggle").classList.toggle("on", emailAlertsEnabled);
+            document.getElementById("intervalSelect").value = String(settings.monitoring_interval_minutes ?? 5);
+            document.getElementById("retrySelect").value = String(settings.max_retries ?? 2);
+            document.getElementById("alertEmail").value = settings.alert_email || "";
         } catch (error) {
-
-            console.error(
-                "Settings loading error:",
-                error
-            );
-
-
-            showNotice(
-                "Could not load monitoring settings."
-            );
+            console.error("Settings loading error:", error);
+            showNotice("Could not load monitoring settings: " + error.message);
         }
     }
-
 
     function toggleMonitoring() {
-
-        monitoringEnabled =
-            !monitoringEnabled;
-
-
-        const toggle =
-            document.getElementById(
-                "monitorToggle"
-            );
-
-
-        toggle.classList.toggle(
-            "on",
-            monitoringEnabled
-        );
+        monitoringEnabled = !monitoringEnabled;
+        document.getElementById("monitorToggle").classList.toggle("on", monitoringEnabled);
     }
 
+    function toggleEmailAlerts() {
+        emailAlertsEnabled = !emailAlertsEnabled;
+        document.getElementById("emailToggle").classList.toggle("on", emailAlertsEnabled);
+    }
 
     async function saveSettings() {
-
-        const interval =
-            Number(
-                document.getElementById(
-                    "intervalSelect"
-                ).value
-            );
-
-
-        const retries =
-            Number(
-                document.getElementById(
-                    "retrySelect"
-                ).value
-            );
-
-
+        const interval = Number(document.getElementById("intervalSelect").value);
+        const retries = Number(document.getElementById("retrySelect").value);
+        const alertEmail = document.getElementById("alertEmail").value.trim();
         try {
-
-            await api(
-                "/settings",
-                {
-
-                    method: "PUT",
-
-                    body: JSON.stringify({
-
-                        monitoring_enabled:
-                            monitoringEnabled,
-
-                        monitoring_interval_minutes:
-                            interval,
-
-                        max_retries:
-                            retries
-
-                    })
-
-                }
-            );
-
-
-            showNotice(
-                "Monitoring settings saved."
-            );
-
-
-            await loadMonitoringStatus();
-
-
+            const saved = await api("/settings", {
+                method: "PUT",
+                body: JSON.stringify({
+                    monitoring_enabled: monitoringEnabled,
+                    monitoring_interval_minutes: interval,
+                    max_retries: retries,
+                    alert_email: alertEmail,
+                    email_alerts_enabled: emailAlertsEnabled
+                })
+            });
+            showNotice(saved.message || "Monitoring settings saved.");
+            await Promise.all([loadMonitoringStatus(), loadSettings()]);
         } catch (error) {
-
-            console.error(
-                "Settings save error:",
-                error
-            );
-
-
-            showNotice(
-                "Could not save settings."
-            );
+            console.error("Settings save error:", error);
+            showNotice("Could not save settings: " + error.message);
         }
     }
 
+    async function sendTestEmail() {
+        const recipient = document.getElementById("alertEmail").value.trim();
+        if (!recipient) {
+            showNotice("Enter an alert email address and save settings first.");
+            return;
+        }
+        try {
+            // Persist the recipient and alert toggle before testing.
+            await api("/settings", {
+                method: "PUT",
+                body: JSON.stringify({ alert_email: recipient, email_alerts_enabled: emailAlertsEnabled })
+            });
+            const result = await api("/test-email", { method: "POST", body: JSON.stringify({}) });
+            showNotice(result.message || "Test email sent.");
+        } catch (error) {
+            console.error("Test email error:", error);
+            showNotice("Test email failed: " + error.message);
+        }
+    }
+
+    /* =========================
+       ACCOUNT / OTP / SUBSCRIPTIONS
+    ========================= */
+    function accountMessage(message, isError = false) {
+        const el = document.getElementById("accountMessage");
+        if (el) {
+            el.textContent = message || "";
+            el.style.color = isError ? "var(--red)" : "var(--wine)";
+            el.setAttribute("role", isError ? "alert" : "status");
+        }
+    }
+
+    async function registerAccount(event) {
+        event.preventDefault();
+        const name = document.getElementById("regName").value.trim();
+        const email = document.getElementById("regEmail").value.trim().toLowerCase();
+        const password = document.getElementById("regPassword").value;
+        // Do not reset the form on either success or failure; the user keeps their entries.
+        document.getElementById("verifyEmail").value = email;
+        accountMessage("Creating your account and sending the verification code…");
+        try {
+            const result = await api("/auth/register", {
+                method: "POST",
+                body: JSON.stringify({ name, email, password })
+            });
+            accountMessage(result.message || "Check your inbox and spam folder for the verification code.", result.email_sent === false);
+        } catch (e) {
+            if (e.status === 409) {
+                accountMessage("This email is already registered. Your details are still here. Log in if you have verified it, or use Resend code if you still need to verify it.", true);
+            } else {
+                accountMessage(e.message + (e.status === 503 ? " Your details are still here. Check the backend terminal for the SMTP error, then try Resend code." : " Your entered details have been kept."), true);
+            }
+        }
+    }
+
+    async function verifyAccount(event) {
+        event.preventDefault();
+        const email = document.getElementById("verifyEmail").value.trim().toLowerCase();
+        const code = document.getElementById("verifyCode").value.trim();
+        accountMessage("Verifying your code…");
+        try {
+            const result = await api("/auth/verify", {
+                method: "POST",
+                body: JSON.stringify({ email, code })
+            });
+            // Keep the email and code in the form so the user can see what they entered.
+            if (result.confirmation_email_sent === false) {
+                accountMessage(result.message || "Email verified, but the confirmation email could not be sent. Check the backend terminal and SMTP settings.", true);
+            } else {
+                accountMessage(result.message || "Email verified. You can now log in.");
+            }
+        } catch (e) {
+            accountMessage(e.message + " Your email and code have been kept so you can correct them or try again.", true);
+        }
+    }
+
+    async function resendAccountOTP() {
+        const email = document.getElementById("verifyEmail").value.trim().toLowerCase();
+        if (!email) {
+            accountMessage("Enter your email address first.", true);
+            document.getElementById("verifyEmail").focus();
+            return;
+        }
+        accountMessage("Requesting a new verification code…");
+        try {
+            const result = await api("/auth/resend-otp", {
+                method: "POST",
+                body: JSON.stringify({ email })
+            });
+            accountMessage(result.message || "If this account still needs verification, a new code has been sent.");
+        } catch (e) {
+            accountMessage(e.message + " Your email address has been kept.", true);
+        }
+    }
+
+    async function resendConfirmationEmail() {
+        const email = document.getElementById("verifyEmail").value.trim().toLowerCase();
+        if (!email) {
+            accountMessage("Enter your verified email address first.", true);
+            document.getElementById("verifyEmail").focus();
+            return;
+        }
+        accountMessage("Sending confirmation email…");
+        try {
+            const result = await api("/auth/resend-confirmation", {
+                method: "POST",
+                body: JSON.stringify({ email })
+            });
+            accountMessage(result.message || "Confirmation email sent. Check your inbox and spam folder.", result.confirmation_email_sent === false);
+        } catch (e) {
+            accountMessage(e.message + " Check the backend terminal for SMTP details. Your email address has been kept.", true);
+        }
+    }
+
+    async function loginAccount(event) {
+        event.preventDefault(); accountMessage("Logging in...");
+        try {
+            const result = await api("/auth/login", {method:"POST", body:JSON.stringify({email:document.getElementById("loginEmail").value.trim().toLowerCase(), password:document.getElementById("loginPassword").value})});
+            accountMessage("Logged in as " + result.user.name + " (" + result.user.email + ").");
+            await refreshAccount();
+        } catch (e) { accountMessage(e.message, true); }
+    }
+
+    async function logoutAccount() {
+        try { await api("/auth/logout", {method:"POST", body:JSON.stringify({})}); await refreshAccount(); accountMessage("You have logged out."); }
+        catch (e) { accountMessage(e.message, true); }
+    }
+
+    async function refreshAccount() {
+        try {
+            const [me, websites] = await Promise.all([api("/auth/me"), api("/websites")]);
+            const status = document.getElementById("accountStatus");
+            const logout = document.getElementById("logoutBtn");
+            if (me.user) {
+                status.textContent = "Logged in as " + me.user.name + " · " + me.user.email;
+                logout.style.display = "inline-block";
+            } else {
+                status.textContent = "You are not logged in. Create an account, verify your email, then log in.";
+                logout.style.display = "none";
+            }
+            const select = document.getElementById("subscriptionWebsite");
+            select.innerHTML = '<option value="">Choose a monitored website</option>' + websites.map(w => '<option value="' + Number(w.id) + '">' + escapeHtml(w.url) + '</option>').join("");
+            if (me.user) {
+                const subs = await api("/subscriptions");
+                document.getElementById("subscriptionList").innerHTML = subs.length ? subs.map(x => '<div class="subscription-row"><div><strong>' + escapeHtml(x.url || "Website") + '</strong><div class="account-small">Down alerts: ' + (x.notify_down ? "On" : "Off") + ' · Recovery alerts: ' + (x.notify_recovery ? "On" : "Off") + '</div></div><button class="secondary-btn" onclick="removeSubscription(' + Number(x.id) + ')">Unsubscribe</button></div>').join("") : '<p class="account-small">You have not subscribed to any websites yet.</p>';
+            } else {
+                document.getElementById("subscriptionList").innerHTML = '<p class="account-small">Log in to manage your subscriptions.</p>';
+            }
+        } catch (e) { console.error("Account loading error:", e); }
+    }
+
+    async function saveSubscription() {
+        const websiteId = Number(document.getElementById("subscriptionWebsite").value);
+        if (!websiteId) { accountMessage("Choose a monitored website first.", true); return; }
+        try {
+            const result = await api("/subscriptions", {method:"POST", body:JSON.stringify({website_id:websiteId, notify_down:document.getElementById("notifyDown").checked, notify_recovery:document.getElementById("notifyRecovery").checked})});
+            accountMessage(result.message); await refreshAccount();
+        } catch (e) { accountMessage(e.message, true); }
+    }
+
+    async function removeSubscription(id) {
+        try { const result = await api("/subscriptions/" + id, {method:"DELETE"}); accountMessage(result.message); await refreshAccount(); }
+        catch (e) { accountMessage(e.message, true); }
+    }
 
     /* =========================
        UTILITIES
@@ -2462,7 +2587,7 @@
     ========================= */
 
     loadAllData();
-
+    refreshAccount();
 
     setInterval(
         loadAllData,

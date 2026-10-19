@@ -3,14 +3,18 @@ import ssl
 import socket
 import smtplib
 from email.message import EmailMessage
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 import requests
 from dotenv import load_dotenv
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, session
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from apscheduler.schedulers.background import BackgroundScheduler
+from werkzeug.security import generate_password_hash, check_password_hash
+import secrets
+import hashlib
+import re
 
 
 # ============================================================
@@ -61,7 +65,10 @@ MAIL_RECIPIENT = os.getenv(
 
 app = Flask(__name__)
 
-CORS(app)
+app.config["SECRET_KEY"] = os.getenv("VEYRA_SECRET_KEY") or secrets.token_hex(32)
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+CORS(app, supports_credentials=True, origins=["http://127.0.0.1:5500", "http://localhost:5500"])
 
 DB_PATH = os.path.join(
     BASE_DIR,
@@ -229,6 +236,33 @@ class AppSetting(db.Model):
     )
 
 
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    email = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    email_verified = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class EmailOTP(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    code_hash = db.Column(db.String(64), nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    attempts = db.Column(db.Integer, default=0, nullable=False)
+    used = db.Column(db.Boolean, default=False, nullable=False)
+
+
+class WebsiteSubscription(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    website_id = db.Column(db.Integer, db.ForeignKey("monitored_website.id"), nullable=False, index=True)
+    notify_down = db.Column(db.Boolean, default=True, nullable=False)
+    notify_recovery = db.Column(db.Boolean, default=True, nullable=False)
+    __table_args__ = (db.UniqueConstraint("user_id", "website_id", name="uq_user_website_subscription"),)
+
+
 # ============================================================
 # DEFAULT SETTINGS
 # ============================================================
@@ -337,13 +371,13 @@ def send_email_alert(
     message
 ):
 
-    if not MAIL_USERNAME or not MAIL_PASSWORD or not MAIL_RECIPIENT:
-
-        print(
-            "[EMAIL] Email settings are missing. "
-            "Alert was not sent."
-        )
-
+    recipient_setting = AppSetting.query.filter_by(key="alert_email").first()
+    recipient = recipient_setting.value if recipient_setting and recipient_setting.value else MAIL_RECIPIENT
+    enabled_setting = AppSetting.query.filter_by(key="email_alerts_enabled").first()
+    if enabled_setting and enabled_setting.value.lower() == "false":
+        return False
+    if not MAIL_USERNAME or not MAIL_PASSWORD or not recipient:
+        print("[EMAIL] Email settings are missing. Alert was not sent.")
         return False
 
     try:
@@ -352,7 +386,7 @@ def send_email_alert(
 
         email["From"] = MAIL_USERNAME
 
-        email["To"] = MAIL_RECIPIENT
+        email["To"] = recipient
 
         email["Subject"] = subject
 
@@ -374,7 +408,7 @@ def send_email_alert(
             server.send_message(email)
 
         print(
-            f"[EMAIL] Alert sent to {MAIL_RECIPIENT}"
+            f"[EMAIL] Alert sent to {recipient}"
         )
 
         return True
@@ -386,6 +420,58 @@ def send_email_alert(
         )
 
         return False
+
+
+def send_email_to(recipient, subject, message):
+    if not MAIL_USERNAME or not MAIL_PASSWORD or not recipient:
+        print("[EMAIL] SMTP credentials or recipient missing; email skipped.")
+        return False
+    try:
+        email = EmailMessage()
+        email["From"] = MAIL_USERNAME
+        email["To"] = recipient
+        email["Subject"] = subject
+        email.set_content(message)
+        with smtplib.SMTP(MAIL_SERVER, MAIL_PORT, timeout=20) as server:
+            server.starttls()
+            server.login(MAIL_USERNAME, MAIL_PASSWORD)
+            server.send_message(email)
+        print(f"[EMAIL] Sent to {recipient}")
+        return True
+    except Exception as error:
+        print(f"[EMAIL ERROR] {error}")
+        return False
+
+
+def notify_subscribers(url, event, result, reason=""):
+    website = MonitoredWebsite.query.filter_by(url=url).first()
+    if not website:
+        return
+    for sub in WebsiteSubscription.query.filter_by(website_id=website.id).all():
+        user = db.session.get(User, sub.user_id)
+        if not user or not user.email_verified:
+            continue
+        if event == "DOWN" and not sub.notify_down:
+            continue
+        if event == "UP" and not sub.notify_recovery:
+            continue
+        if event == "DOWN":
+            subject = f"Veyra alert: {url} is DOWN"
+            body = (f"Veyra Website Health Monitor\n\nWebsite: {url}\nStatus: DOWN\n"
+                    f"HTTP status: {result.get('http_status')}\nResponse time: {result.get('response_time_ms')} ms\n"
+                    f"Reason: {reason or 'Confirmed health check failure'}\n\n"
+                    "You receive this because you subscribed to alerts for this website.")
+        else:
+            subject = f"Veyra recovery: {url} is UP"
+            body = (f"Veyra Website Health Monitor\n\nWebsite: {url}\nStatus: UP\n"
+                    f"HTTP status: {result.get('http_status')}\nResponse time: {result.get('response_time_ms')} ms\n\n"
+                    "The website has recovered. You receive this because you subscribed to its alerts.")
+        send_email_to(user.email, subject, body)
+
+
+def current_user():
+    user_id = session.get("user_id")
+    return db.session.get(User, user_id) if user_id else None
 
 
 # ============================================================
@@ -662,121 +748,48 @@ def save_health_result(result):
 # ============================================================
 
 def handle_incident(result):
+    """Track incident transitions and notify users subscribed to the website."""
+    url = result.get("url")
+    status = result.get("status")
+    if not url:
+        print("[INCIDENT ERROR] Health-check result has no URL.")
+        return
 
-    url = result["url"]
+    open_incident = Incident.query.filter_by(url=url, status="OPEN").first()
 
-    open_incident = Incident.query.filter_by(
-        url=url,
-        status="OPEN"
-    ).first()
-
-    if result["status"] == "DOWN":
-
-        if not open_incident:
-
-            error_message = result.get(
-                "ssl_error",
-                ""
-            )
-
-            if result.get("http_status"):
-
-                incident_message = (
-                    f"Website returned HTTP "
-                    f"{result['http_status']}."
-                )
-
-            elif error_message:
-
-                incident_message = (
-                    f"Website check failed: "
-                    f"{error_message}"
-                )
-
-            else:
-
-                incident_message = (
-                    "Website failed the "
-                    "confirmed health check."
-                )
-
-            incident = Incident(
-                url=url,
-                incident_type="WEBSITE_DOWN",
-                status="OPEN",
-                message=incident_message,
-                started_at=datetime.now(
-                    timezone.utc
-                )
-            )
-
-            db.session.add(incident)
-
-            db.session.commit()
-
-            print(
-                f"[INCIDENT] {url} -> OPEN"
-            )
-
-            # ------------------------------------------------
-            # DOWN EMAIL ALERT
-            # ------------------------------------------------
-
-            send_email_alert(
-                subject=f"🚨 Veyra Alert: {url} is DOWN",
-                message=(
-                    "Veyra Website Health Monitor Alert\n\n"
-                    f"Website: {url}\n"
-                    "Status: DOWN\n"
-                    f"HTTP Status: "
-                    f"{result.get('http_status')}\n"
-                    f"Response Time: "
-                    f"{result.get('response_time_ms')} ms\n"
-                    f"Reason: {incident_message}\n\n"
-                    "Veyra has confirmed the failure "
-                    "after retry attempts.\n"
-                )
-            )
-
-    else:
-
+    if status == "DOWN":
         if open_incident:
+            print(f"[INCIDENT] {url} remains DOWN; duplicate alert skipped.")
+            return
 
-            open_incident.status = "RESOLVED"
+        error_message = result.get("ssl_error") or ""
+        if result.get("http_status") is not None:
+            incident_message = f"Website returned HTTP {result['http_status']}."
+        elif error_message:
+            incident_message = f"Website check failed: {error_message}"
+        else:
+            incident_message = "Website failed the confirmed health check."
 
-            open_incident.resolved_at = (
-                datetime.now(timezone.utc)
-            )
+        incident = Incident(
+            url=url,
+            incident_type="WEBSITE_DOWN",
+            status="OPEN",
+            message=incident_message,
+            started_at=datetime.now(timezone.utc),
+        )
+        db.session.add(incident)
+        db.session.commit()
+        print(f"[INCIDENT] {url} -> OPEN")
+        # Send to verified users who subscribed to this website, not the fixed admin address.
+        notify_subscribers(url, "DOWN", result, incident_message)
 
-            open_incident.message = (
-                "Website recovered and is "
-                "responding again."
-            )
-
-            db.session.commit()
-
-            print(
-                f"[INCIDENT] {url} -> RESOLVED"
-            )
-
-            # ------------------------------------------------
-            # RECOVERY EMAIL ALERT
-            # ------------------------------------------------
-
-            send_email_alert(
-                subject=f"✅ Veyra Recovery: {url} is UP",
-                message=(
-                    "Veyra Website Health Monitor Recovery\n\n"
-                    f"Website: {url}\n"
-                    "Status: UP\n"
-                    f"HTTP Status: "
-                    f"{result.get('http_status')}\n"
-                    f"Response Time: "
-                    f"{result.get('response_time_ms')} ms\n\n"
-                    "The website has recovered and "
-                    "is responding again.\n"
-                )
-            )
+    elif status == "UP" and open_incident:
+        open_incident.status = "RESOLVED"
+        open_incident.resolved_at = datetime.now(timezone.utc)
+        open_incident.message = "Website recovered and is responding again."
+        db.session.commit()
+        print(f"[INCIDENT] {url} -> RESOLVED")
+        notify_subscribers(url, "UP", result)
 
 
 # ============================================================
@@ -1031,8 +1044,23 @@ def add_website():
     )
 
     db.session.add(website)
-
     db.session.commit()
+
+    # If a user is logged in, subscribe them to alerts for the website they added.
+    user = current_user()
+    if user and user.email_verified:
+        subscription = WebsiteSubscription.query.filter_by(
+            user_id=user.id,
+            website_id=website.id
+        ).first()
+        if not subscription:
+            db.session.add(WebsiteSubscription(
+                user_id=user.id,
+                website_id=website.id,
+                notify_down=True,
+                notify_recovery=True
+            ))
+            db.session.commit()
 
     return jsonify({
         "message": "Website added",
@@ -1213,7 +1241,9 @@ def get_settings_api():
             get_monitoring_interval(),
 
         "max_retries":
-            get_max_retries()
+            get_max_retries(),
+        "alert_email": get_setting("alert_email") or MAIL_RECIPIENT or "",
+        "email_alerts_enabled": (get_setting("email_alerts_enabled") or "true").lower() == "true"
     })
 
 
@@ -1314,6 +1344,15 @@ def update_settings():
             retries
         )
 
+    if "alert_email" in data:
+        alert_email = str(data.get("alert_email") or "").strip()
+        if alert_email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", alert_email):
+            return jsonify({"error": "Enter a valid alert email address."}), 400
+        set_setting("alert_email", alert_email)
+
+    if "email_alerts_enabled" in data:
+        set_setting("email_alerts_enabled", str(bool(data["email_alerts_enabled"])).lower())
+
     configure_scheduler()
 
     return jsonify({
@@ -1329,11 +1368,175 @@ def update_settings():
 
         "max_retries":
             get_max_retries(),
+        "alert_email": get_setting("alert_email") or MAIL_RECIPIENT or "",
+        "email_alerts_enabled": (get_setting("email_alerts_enabled") or "true").lower() == "true",
 
         "scheduler_running":
             scheduler.running
             and get_monitoring_enabled()
     })
+
+
+# ============================================================
+# API — ACCOUNT, EMAIL OTP AND SUBSCRIPTIONS
+# ============================================================
+
+def otp_digest(code):
+    return hashlib.sha256(code.encode("utf-8")).hexdigest()
+
+
+@app.route("/api/auth/register", methods=["POST"])
+def register_user():
+    data = request.get_json(silent=True) or {}
+    name = str(data.get("name", "")).strip()
+    email = str(data.get("email", "")).strip().lower()
+    password = str(data.get("password", ""))
+    if not name or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        return jsonify({"error": "Enter your name and a valid email address."}), 400
+    if len(password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters."}), 400
+    if User.query.filter_by(email=email).first():
+        return jsonify({"error": "An account with this email already exists. Try logging in."}), 409
+    user = User(name=name, email=email, password_hash=generate_password_hash(password))
+    db.session.add(user)
+    db.session.commit()
+    code = f"{secrets.randbelow(1000000):06d}"
+    otp = EmailOTP(user_id=user.id, code_hash=otp_digest(code),
+                   expires_at=datetime.now(timezone.utc) + timedelta(minutes=10))
+    db.session.add(otp)
+    db.session.commit()
+    sent = send_email_to(email, "Your Veyra email verification code", f"Hi {name},\n\nYour Veyra verification code is {code}.\nIt expires in 10 minutes. If you did not create this account, you can ignore this email.")
+    if not sent:
+        return jsonify({"message": "Account created, but the verification email could not be sent. Check SMTP settings and ask to resend the code.", "email": email, "email_sent": False}), 503
+    return jsonify({"message": "Verification code sent. Check your email.", "email": email, "email_sent": True}), 201
+
+
+@app.route("/api/auth/resend-otp", methods=["POST"])
+def resend_otp():
+    data = request.get_json(silent=True) or {}
+    email = str(data.get("email", "")).strip().lower()
+    user = User.query.filter_by(email=email).first()
+    if not user or user.email_verified:
+        return jsonify({"message": "If the account needs verification, a new code will be sent."})
+    code = f"{secrets.randbelow(1000000):06d}"
+    db.session.add(EmailOTP(user_id=user.id, code_hash=otp_digest(code), expires_at=datetime.now(timezone.utc) + timedelta(minutes=10)))
+    db.session.commit()
+    sent = send_email_to(email, "Your new Veyra verification code", f"Your Veyra verification code is {code}. It expires in 10 minutes.")
+    if not sent:
+        return jsonify({"error": "Email could not be sent. Check SMTP settings."}), 503
+    return jsonify({"message": "A new verification code has been sent."})
+
+
+@app.route("/api/auth/verify", methods=["POST"])
+def verify_otp():
+    data = request.get_json(silent=True) or {}
+    email = str(data.get("email", "")).strip().lower()
+    code = str(data.get("code", "")).strip()
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({"error": "Account not found."}), 404
+    if user.email_verified:
+        return jsonify({"message": "Email is already verified. You can log in."})
+    now = datetime.now(timezone.utc)
+    otp = EmailOTP.query.filter_by(user_id=user.id, used=False).order_by(EmailOTP.id.desc()).first()
+    if not otp or otp.expires_at.replace(tzinfo=timezone.utc) < now or otp.attempts >= 5:
+        return jsonify({"error": "Code expired or attempt limit reached. Request a new code."}), 400
+    otp.attempts += 1
+    if not secrets.compare_digest(otp.code_hash, otp_digest(code)):
+        db.session.commit()
+        return jsonify({"error": "Incorrect verification code."}), 400
+    otp.used = True
+    user.email_verified = True
+    db.session.commit()
+    return jsonify({"message": "Email verified. You can now log in."})
+
+
+@app.route("/api/auth/login", methods=["POST"])
+def login_user():
+    data = request.get_json(silent=True) or {}
+    email = str(data.get("email", "")).strip().lower()
+    password = str(data.get("password", ""))
+    user = User.query.filter_by(email=email).first()
+    if not user or not check_password_hash(user.password_hash, password):
+        return jsonify({"error": "Incorrect email or password."}), 401
+    if not user.email_verified:
+        return jsonify({"error": "Verify your email before logging in."}), 403
+    session.clear()
+    session["user_id"] = user.id
+    return jsonify({"message": "Logged in successfully.", "user": {"id": user.id, "name": user.name, "email": user.email}})
+
+
+@app.route("/api/auth/me", methods=["GET"])
+def auth_me():
+    user = current_user()
+    if not user:
+        return jsonify({"user": None})
+    return jsonify({"user": {"id": user.id, "name": user.name, "email": user.email}})
+
+
+@app.route("/api/auth/logout", methods=["POST"])
+def logout_user():
+    session.clear()
+    return jsonify({"message": "Logged out."})
+
+
+@app.route("/api/subscriptions", methods=["GET"])
+def list_subscriptions():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Log in to manage subscriptions."}), 401
+    rows = WebsiteSubscription.query.filter_by(user_id=user.id).all()
+    return jsonify([{"id": x.id, "website_id": x.website_id,
+                     "url": db.session.get(MonitoredWebsite, x.website_id).url if db.session.get(MonitoredWebsite, x.website_id) else None,
+                     "notify_down": x.notify_down, "notify_recovery": x.notify_recovery} for x in rows])
+
+
+@app.route("/api/subscriptions", methods=["POST"])
+def create_subscription():
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Log in to subscribe to alerts."}), 401
+    data = request.get_json(silent=True) or {}
+    try:
+        website_id = int(data.get("website_id"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Choose a website."}), 400
+    website = db.session.get(MonitoredWebsite, website_id)
+    if not website:
+        return jsonify({"error": "Website not found."}), 404
+    sub = WebsiteSubscription.query.filter_by(user_id=user.id, website_id=website_id).first()
+    if not sub:
+        sub = WebsiteSubscription(user_id=user.id, website_id=website_id)
+        db.session.add(sub)
+    sub.notify_down = bool(data.get("notify_down", True))
+    sub.notify_recovery = bool(data.get("notify_recovery", True))
+    db.session.commit()
+    return jsonify({"message": "Website alert subscription saved.", "website_id": website_id})
+
+
+@app.route("/api/subscriptions/<int:subscription_id>", methods=["DELETE"])
+def delete_subscription(subscription_id):
+    user = current_user()
+    if not user:
+        return jsonify({"error": "Log in to manage subscriptions."}), 401
+    sub = WebsiteSubscription.query.filter_by(id=subscription_id, user_id=user.id).first()
+    if not sub:
+        return jsonify({"error": "Subscription not found."}), 404
+    db.session.delete(sub)
+    db.session.commit()
+    return jsonify({"message": "Unsubscribed from website alerts."})
+
+
+@app.route("/api/test-email", methods=["POST"])
+def test_email_api():
+    data = request.get_json(silent=True) or {}
+    recipient = str(data.get("recipient") or get_setting("alert_email") or MAIL_RECIPIENT or "").strip()
+    if not recipient:
+        return jsonify({"error": "Set an alert recipient in Settings first."}), 400
+    ok = send_email_to(recipient, "Veyra test email", "This is a test email from Veyra Website Health Monitor. If you received it, email delivery is working.")
+    if not ok:
+        return jsonify({"error": "Test email failed. Check MAIL_USERNAME, MAIL_PASSWORD and SMTP settings in .env."}), 500
+    return jsonify({"message": f"Test email sent to {recipient}."})
 
 
 # ============================================================
