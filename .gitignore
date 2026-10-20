@@ -4,3 +4,9 @@ __pycache__/
 *.pyc
 .pytest_cache/
 website_health.db
+# Local database backups
+website_health.backup.db
+*.backup.db
+
+# Local working backups
+backend/app_working_backup.py
