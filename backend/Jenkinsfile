@@ -1,6 +1,9 @@
-
 pipeline {
     agent any
+
+    options {
+        timestamps()
+    }
 
     stages {
         stage('Checkout') {
@@ -9,10 +12,26 @@ pipeline {
             }
         }
 
-        stage('Verify Docker') {
+        stage('Verify Docker and Python') {
             steps {
+                sh 'python3 --version'
+                sh 'python3 -m pip --version'
                 sh 'docker --version'
                 sh 'docker compose version'
+            }
+        }
+
+        stage('Install Test Dependencies') {
+            steps {
+                sh 'python3 -m venv .venv'
+                sh '.venv/bin/python -m pip install --upgrade pip'
+                sh '.venv/bin/python -m pip install -r requirements.txt pytest'
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                sh '.venv/bin/python -m pytest -q'
             }
         }
 
@@ -20,6 +39,20 @@ pipeline {
             steps {
                 sh 'docker compose build'
             }
+        }
+    }
+
+    post {
+        success {
+            echo 'Veyra CI pipeline completed successfully!'
+        }
+
+        failure {
+            echo 'Veyra CI pipeline failed. Check the stage logs above.'
+        }
+
+        always {
+            echo 'Veyra CI pipeline execution finished.'
         }
     }
 }

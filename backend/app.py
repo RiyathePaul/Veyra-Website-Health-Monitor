@@ -70,10 +70,12 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 CORS(app, supports_credentials=True, origins=["http://127.0.0.1:5500", "http://localhost:5500"])
 
-DB_PATH = os.path.join(
-    BASE_DIR,
-    "website_health.db"
+
+DB_PATH = os.getenv(
+    "VEYRA_DB_PATH",
+    os.path.join(BASE_DIR, "website_health.db")
 )
+
 
 app.config["SQLALCHEMY_DATABASE_URI"] = (
     "sqlite:///" + DB_PATH.replace("\\", "/")
@@ -1614,6 +1616,8 @@ if __name__ == "__main__":
     print("")
 
     app.run(
-        debug=True,
+        host="0.0.0.0",
+        port=5000,
+        debug=False,
         use_reloader=False
     )

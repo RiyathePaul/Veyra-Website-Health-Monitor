@@ -1,0 +1,19 @@
+﻿
+services:
+  veyra:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: veyra-backend
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      VEYRA_DB_PATH: /data/website_health.db
+    volumes:
+      - veyra_data:/data
+    restart: unless-stopped
+
+volumes:
+  veyra_data:

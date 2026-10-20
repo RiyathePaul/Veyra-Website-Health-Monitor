@@ -1,0 +1,11 @@
+﻿venv/
+.git/
+.pytest_cache/
+__pycache__/
+*.pyc
+.env
+*.db
+instance/
+tests/
+Frontend/
+app_working_backup.py
